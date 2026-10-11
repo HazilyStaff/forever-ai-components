@@ -4,7 +4,7 @@ Sole handoff file. Budget 4,000 bytes. Original request (verbatim, cold): `docs/
 
 ## State — 11/10/2026
 
-**COMPLETE (v1.0.0), one user action outstanding.**
+**COMPLETE (v1.1.0), one user action outstanding.**
 Live: https://forever-components.pages.dev — Cloudflare Access app "Forever Components",
 policy "Only Me", 24 h session. Pages project `forever-components` (direct upload).
 Observed live: anonymous requests refused on production and deployment hostnames;
@@ -52,6 +52,11 @@ locally. `scripts/verify-live.mjs` green against production.
 - Shell heredocs in this harness strip backslashes; write files with the file tools.
 
 ## AI trail
+
+11/10/2026 Claude Opus 5.5 (v1.1.0): Copy for AI rewritten after user report that agents
+copied the self-playing demo and the original colours. Defaults now: essence only, restyle to
+the target project's design tokens, animate only on the real trigger; two remembered options
+(Look, Animation) switch either off. Owner: `src/lib/prompts.ts`.
 
 11/10/2026 Claude Opus 5.5: audit → app → tests → sync/deploy workflows → Cloudflare Pages +
 Access live → docs.

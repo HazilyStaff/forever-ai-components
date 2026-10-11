@@ -7,6 +7,7 @@ import {
   LARGE_PROMPT_CHARS,
   promptSize,
   TOO_LARGE_PROMPT_CHARS,
+  triggerGuidance,
 } from '../../src/lib/prompts';
 import { facetCounts, LibrarySearch, matchesFilters, sortComponents } from '../../src/lib/search';
 import type { SiteConfig } from '../../src/lib/types';
@@ -111,33 +112,74 @@ describe('addresses', () => {
 describe('Copy for AI', () => {
   const quick = buildComponentPrompt(toggle, { mode: 'quick', includeSource: false, site });
   const detailed = buildComponentPrompt(toggle, { mode: 'detailed', includeSource: false, site });
+  const clicky = catalogue.components.find((c) => c.role === 'button' && c.interaction.includes('click'))!;
+  const loader = catalogue.components.find((c) => c.role === 'loader')!;
+  const ambient = catalogue.components.find((c) => c.role === 'background' && c.kind === 'passive')!;
 
-  it('quick instructions contain the component’s own details and the required rules', () => {
+  it('quick instructions contain the component’s own details and the standing rules', () => {
     expect(quick).toContain('Component: Liquid Toggle');
     expect(quick).toContain('Original file: infinite/inputs-switches/01-liquid-toggle.html');
     expect(quick).toContain(`Source: ${rawUrl(toggle, site)}`);
     expect(quick).toContain(toggle.description);
-    expect(quick).toMatch(/existing framework/);
-    expect(quick).toMatch(/Preserve the animation/);
+    expect(quick).toMatch(/project's own framework/);
+    expect(quick).toMatch(/Reproduce the motion faithfully/);
     expect(quick).toMatch(/reduced-motion/);
     expect(quick).toMatch(/Do not introduce unnecessary dependencies/);
-    expect(quick).toMatch(/Do not replace the design with a generic approximation/);
-    expect(quick).toMatch(/Inspect the existing project before making changes/);
-    expect(quick.length).toBeLessThan(2500);
+    expect(quick).toMatch(/Inspect my existing project before making changes/);
+    expect(quick.length).toBeLessThan(5000);
   });
 
-  it('detailed instructions add technical facts, behaviour and testing guidance', () => {
-    expect(detailed.length).toBeGreaterThan(quick.length * 1.5);
-    for (const heading of ['## What to do', '## About the original', '## Must be preserved', '## Expected behaviour', '## Testing']) {
+  it('by default asks for the essence and forbids carrying over the original colours and fonts', () => {
+    for (const text of [quick, detailed]) {
+      expect(text).toMatch(/ESSENCE of this component, not its skin/);
+      expect(text).toMatch(/do not carry over the original's colours, gradients, fonts/);
+      expect(text).toMatch(/must be strictly adhered to/);
+      expect(text).toMatch(/Introduce no new colour values and no new fonts/);
+      expect(text).not.toMatch(/overall visual appearance/);
+    }
+    expect(detailed).toMatch(/for orientation only, do NOT use them/);
+    // The author's "must keep" list no longer pins the showcase theme switcher or colours.
+    expect(toggle.adapt.preserveElements.some((p) => /theme hook/i.test(p))).toBe(true);
+    expect(detailed).not.toMatch(/theme hook/i);
+    expect(detailed).toContain('reduced-motion guard');
+  });
+
+  it('by default treats the self-playing preview as a demo and names the real trigger', () => {
+    for (const text of [quick, detailed]) {
+      expect(text).toMatch(/SHOWCASE DEMO/);
+      expect(text).toMatch(/Delete every demo driver/);
+      expect(text).toMatch(/at rest, nothing moves/i);
+    }
+    expect(quick).toMatch(/Trigger: the user's own action/);
+    expect(buildComponentPrompt(clicky, { mode: 'quick', includeSource: false, site })).toMatch(/Trigger: the user's own action \(.*click or tap/);
+    expect(triggerGuidance(loader)).toMatch(/only while a real loading or working state is active/);
+    expect(triggerGuidance(ambient)).toMatch(/Do not start an endless loop by default/);
+    expect(triggerGuidance(ambient)).toMatch(/ask me one short question/);
+    expect(detailed).toMatch(/confirm nothing animates until the trigger happens/);
+    // The author's note about keeping the idle demo cycle is not passed on as something to keep.
+    const demoKeeper = catalogue.byId.get('buttons/02-gooey-liquid-toggle')!;
+    expect(demoKeeper.adapt.preserveElements.some((p) => /idle demo cycle/.test(p))).toBe(true);
+    expect(buildComponentPrompt(demoKeeper, { mode: 'quick', includeSource: false, site })).not.toMatch(/worth keeping.*idle demo cycle/);
+    expect(buildComponentPrompt(demoKeeper, { mode: 'quick', includeSource: false, site, motion: 'continuous' })).toMatch(/idle demo cycle/);
+  });
+
+  it('either default can be switched off', () => {
+    const keepLook = buildComponentPrompt(toggle, { mode: 'detailed', includeSource: false, site, look: 'original' });
+    expect(keepLook).toMatch(/keep the original's colours, typography and proportions/);
+    expect(keepLook).not.toMatch(/not its skin/);
+    expect(keepLook).toMatch(/SHOWCASE DEMO/);
+    const selfPlaying = buildComponentPrompt(toggle, { mode: 'detailed', includeSource: false, site, motion: 'continuous' });
+    expect(selfPlaying).toMatch(/play by itself, as in the original preview/);
+    expect(selfPlaying).not.toMatch(/SHOWCASE DEMO/);
+    expect(selfPlaying).toMatch(/not its skin/);
+  });
+
+  it('detailed instructions add technical facts, behaviour and self-checks', () => {
+    expect(detailed.length).toBeGreaterThan(quick.length * 1.3);
+    for (const heading of ['## What I want from it', '## When it animates', '## How to build it', '## About the original', '## Expected behaviour', '## Check your own work']) {
       expect(detailed).toContain(heading);
     }
-    for (const item of toggle.adapt.preserveElements) expect(detailed).toContain(item);
     expect(detailed).toContain(rawUrl(toggle, site));
-  });
-
-  it('describes interactive components by their real interactions', () => {
-    const interactive = catalogue.components.find((c) => c.interaction.includes('click'))!;
-    expect(buildComponentPrompt(interactive, { mode: 'quick', includeSource: false, site })).toMatch(/interaction states \(.*click or tap/);
   });
 
   it('the self-contained version carries the complete source and says not to rely on the link', () => {
@@ -168,7 +210,10 @@ describe('Copy for AI', () => {
     expect(text).toContain('My note: (none)');
     expect(text).toMatch(/rather than creating a new project/);
     expect(text).toMatch(/Preserve all existing functionality/);
-    expect(text).toMatch(/consistent spacing, colours, typography and interactions/);
+    expect(text).toMatch(/ESSENCE of each component, not its skin/);
+    expect(text).toMatch(/must be strictly adhered to/);
+    expect(text).toMatch(/SHOWCASE DEMOS/);
+    expect(text).toMatch(/Trigger: /);
     expect(text).toContain('old/gone');
   });
 

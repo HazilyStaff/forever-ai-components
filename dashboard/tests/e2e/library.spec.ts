@@ -195,6 +195,34 @@ test.describe('copy for AI and source', () => {
     expect(text).toContain(`Original file: ${TOGGLE.path}`);
     expect(text).toContain(`https://raw.githubusercontent.com/HazilyStaff/forever-ai-components/main/${TOGGLE.path}`);
     expect(text).toContain('Do not introduce unnecessary dependencies.');
+    // Defaults: essence only, restyled to the project, animated on its trigger rather than by itself.
+    expect(text).toContain('ESSENCE of this component, not its skin');
+    expect(text).toContain('SHOWCASE DEMO');
+    expect(text).toContain('Trigger: the user');
+  });
+
+  test('look and animation choices change the instructions and are remembered', async ({ page }) => {
+    await openViewer(page, TOGGLE.id);
+    await page.getByTestId('copy-for-ai-options').click();
+    const dialog = page.getByRole('dialog');
+    const prompt = dialog.getByTestId('prompt-text');
+    await expect(prompt).toContainText('not its skin');
+    await expect(prompt).toContainText('SHOWCASE DEMO');
+
+    await dialog.getByRole('button', { name: 'Keep original look' }).click();
+    await expect(dialog.getByRole('button', { name: 'Keep original look' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(prompt).not.toContainText('not its skin');
+    await dialog.getByRole('button', { name: 'Plays by itself' }).click();
+    await expect(dialog.getByRole('button', { name: 'Plays by itself' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(prompt).not.toContainText('SHOWCASE DEMO');
+    await expect(prompt).toContainText('play by itself, as in the original preview');
+
+    await page.reload();
+    await page.getByTestId('copy-for-ai-options').click();
+    await expect(page.getByRole('dialog').getByRole('button', { name: 'Plays by itself' })).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('dialog').getByRole('button', { name: 'Only when triggered' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Match my project’s design' }).click();
+    await expect(page.getByRole('dialog').getByTestId('prompt-text')).toContainText('not its skin');
   });
 
   test('detailed and self-contained options work and are remembered', async ({ page }) => {
@@ -207,7 +235,7 @@ test.describe('copy for AI and source', () => {
     await expect(dialog.getByTestId('prompt-text')).toContainText('BEGIN ORIGINAL SOURCE');
     await dialog.getByRole('button', { name: 'Copy for AI' }).click();
     const text = await clipboard(page);
-    expect(text).toContain('## Testing');
+    expect(text).toContain('## Check your own work');
     expect(text).toContain('<!doctype html>');
     expect(text).toContain('c02-goo__btn');
     expect(text).not.toContain('data-fc-bridge');

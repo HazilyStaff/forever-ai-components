@@ -5,7 +5,9 @@ import {
   buildCollectionPrompt,
   buildComponentPrompt,
   promptSize,
+  type AiLook,
   type AiMode,
+  type AiMotion,
   type CollectionPromptItem,
 } from '../lib/prompts';
 import type { CatalogueComponent, SiteConfig } from '../lib/types';
@@ -20,10 +22,10 @@ export function includeSourceDefault(site: SiteConfig): boolean {
 
 /** One-click copy using the remembered options. Returns false if the clipboard refused. */
 export async function copyComponentForAi(c: CatalogueComponent, site: SiteConfig): Promise<{ ok: boolean; label: string }> {
-  const { aiMode } = getPrefs();
+  const { aiMode, aiLook, aiMotion } = getPrefs();
   const includeSource = includeSourceDefault(site);
   const source = includeSource ? await fetchSource(c) : undefined;
-  const text = buildComponentPrompt(c, { mode: aiMode, includeSource, source, site });
+  const text = buildComponentPrompt(c, { mode: aiMode, includeSource, source, site, look: aiLook, motion: aiMotion });
   const label = `${aiMode === 'quick' ? 'Quick' : 'Detailed'} instructions${includeSource ? ' with full source' : ''}`;
   return { ok: await copyText(text), label };
 }
@@ -48,6 +50,47 @@ function SizeNote({ text }: { text: string }) {
         </p>
       )}
     </div>
+  );
+}
+
+/** The two choices that stop an AI copying the showcase literally. Shared by both dialogs. */
+function IntentOptions() {
+  const prefs = usePrefs();
+  return (
+    <>
+      <div className="option-row">
+        <Segmented<AiLook>
+          label="Look"
+          value={prefs.aiLook}
+          onChange={(aiLook) => setPrefs({ aiLook })}
+          options={[
+            { value: 'project', label: 'Match my project’s design', title: 'Take the behaviour and motion only; colours and fonts come from your project' },
+            { value: 'original', label: 'Keep original look', title: 'Keep the component’s own colours and fonts' },
+          ]}
+        />
+        <span className="muted small">
+          {prefs.aiLook === 'project'
+            ? 'Takes the essence only. Colours, fonts and spacing must come from your project’s existing design.'
+            : 'Keeps the component’s own colours and fonts.'}
+        </span>
+      </div>
+      <div className="option-row">
+        <Segmented<AiMotion>
+          label="Animation"
+          value={prefs.aiMotion}
+          onChange={(aiMotion) => setPrefs({ aiMotion })}
+          options={[
+            { value: 'triggered', label: 'Only when triggered', title: 'Animates on tap, hover or a change of state — not by itself' },
+            { value: 'continuous', label: 'Plays by itself', title: 'Runs continuously, as in the preview' },
+          ]}
+        />
+        <span className="muted small">
+          {prefs.aiMotion === 'triggered'
+            ? 'The self-playing preview is treated as a demo. The AI is told to animate only on tap, hover or a change of state.'
+            : 'Runs continuously, exactly as the preview does.'}
+        </span>
+      </div>
+    </>
   );
 }
 
@@ -100,8 +143,16 @@ export function CopyForAiDialog({ component, onClose }: { component: CatalogueCo
   const waiting = includeSource && source === null && !sourceError;
   const blocked = includeSource && !!sourceError;
   const text = useMemo(
-    () => buildComponentPrompt(component, { mode: prefs.aiMode, includeSource, source: source ?? '', site: meta.site }),
-    [component, prefs.aiMode, includeSource, source, meta.site],
+    () =>
+      buildComponentPrompt(component, {
+        mode: prefs.aiMode,
+        includeSource,
+        source: source ?? '',
+        site: meta.site,
+        look: prefs.aiLook,
+        motion: prefs.aiMotion,
+      }),
+    [component, prefs.aiMode, prefs.aiLook, prefs.aiMotion, includeSource, source, meta.site],
   );
 
   const copy = async () => {
@@ -147,6 +198,7 @@ export function CopyForAiDialog({ component, onClose }: { component: CatalogueCo
             : 'A full brief: technical details, expected behaviour and testing.'}
         </span>
       </div>
+      <IntentOptions />
       <SourceToggle checked={includeSource} onChange={(aiIncludeSource) => setPrefs({ aiIncludeSource })} site={meta.site} />
       {blocked && (
         <p className="notice notice-error" role="alert">
@@ -170,6 +222,7 @@ export function CopyCollectionDialog({
 }) {
   const { meta, byId } = useCatalogue();
   const toast = useToast();
+  const prefs = usePrefs();
   const [includeSource, setIncludeSource] = useState(() => includeSourceDefault(meta.site));
   const [sources, setSources] = useState<Map<string, string>>(new Map());
   const [loaded, setLoaded] = useState(0);
@@ -212,8 +265,15 @@ export function CopyCollectionDialog({
       note: item.note,
       source: sources.get(component.id),
     }));
-    return buildCollectionPrompt(items, { name: collection.name, includeSource, site: meta.site, missing });
-  }, [present, sources, collection.name, includeSource, meta.site, missing]);
+    return buildCollectionPrompt(items, {
+      name: collection.name,
+      includeSource,
+      site: meta.site,
+      missing,
+      look: prefs.aiLook,
+      motion: prefs.aiMotion,
+    });
+  }, [present, sources, collection.name, includeSource, meta.site, missing, prefs.aiLook, prefs.aiMotion]);
 
   const copy = async () => {
     const ok = await copyText(text);
@@ -267,6 +327,7 @@ export function CopyCollectionDialog({
               : 'The AI fetches each source file from its link.'}
         </span>
       </div>
+      <IntentOptions />
       {missing.length > 0 && (
         <p className="notice">
           {missing.length} saved component{missing.length === 1 ? ' is' : 's are'} no longer in the library and will be left out.

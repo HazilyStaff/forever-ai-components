@@ -1,7 +1,7 @@
 {
   "name": "forever-components-dashboard",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "description": "Private visual library for the Forever AI Components collection.",
   "engines": { "node": ">=20" },
