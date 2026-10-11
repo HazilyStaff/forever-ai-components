@@ -1,0 +1,5 @@
+# Cloudflare Pages configuration. Secrets and the Access settings are NOT stored here:
+# ACCESS_TEAM_DOMAIN and ACCESS_AUD are set in the Cloudflare dashboard (see docs/DEPLOYMENT.md).
+name = "forever-components"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-09-01"
