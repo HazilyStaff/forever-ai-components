@@ -1,0 +1,3 @@
+# Copy to .dev.vars for local preview only. This switch is ignored on any
+# hostname other than localhost / 127.0.0.1, so it cannot unlock a deployed site.
+LOCAL_DEV_NO_AUTH=true

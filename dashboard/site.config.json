@@ -1,0 +1,10 @@
+{
+  "siteName": "Forever Components",
+  "repoOwner": "HazilyStaff",
+  "repoName": "forever-ai-components",
+  "branch": "main",
+  "upstreamOwner": "isas1",
+  "upstreamName": "forever-ai-components",
+  "componentsDir": "infinite",
+  "repoIsPrivate": false
+}
