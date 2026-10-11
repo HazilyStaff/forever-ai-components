@@ -26,6 +26,11 @@ test('navigation is reachable and stays on screen', async ({ page, isMobile }) =
     expect(Math.round(after.y + after.height)).toBe(viewport.height);
   } else {
     expect(box.y).toBeLessThan(60);
+    // Tablets: every menu item fits, and none runs under the theme button.
+    const toggle = (await page.getByTestId('theme-toggle').boundingBox())!;
+    const last = (await nav.getByRole('link', { name: /Settings/ }).boundingBox())!;
+    expect(last.x + last.width).toBeLessThanOrEqual(toggle.x + 1);
+    expect(toggle.x + toggle.width).toBeLessThanOrEqual(viewport.width);
   }
   expect(isMobile).toBe(true);
   await nav.getByRole('link', { name: /Collections/ }).tap();
