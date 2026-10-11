@@ -2,7 +2,7 @@
 // defaults and the current comparison selection). Kept apart from favourites and collections
 // because they are device-specific and are not part of a backup.
 import { useSyncExternalStore } from 'react';
-import type { AiMode } from '../lib/prompts';
+import type { AiLook, AiMode, AiMotion } from '../lib/prompts';
 import type { Density, SortKey } from '../lib/types';
 
 export interface Prefs {
@@ -10,6 +10,10 @@ export interface Prefs {
   density: Density;
   sort: SortKey;
   aiMode: AiMode;
+  /** project = restyle with the target project's design (default). */
+  aiLook: AiLook;
+  /** triggered = animate only on its trigger, not by itself (default). */
+  aiMotion: AiMotion;
   /** null = follow the site default (on when the repository is private). */
   aiIncludeSource: boolean | null;
   compare: string[];
@@ -24,6 +28,8 @@ const DEFAULTS: Prefs = {
   density: 'comfortable',
   sort: 'default',
   aiMode: 'quick',
+  aiLook: 'project',
+  aiMotion: 'triggered',
   aiIncludeSource: null,
   compare: [],
   filtersOpen: true,
@@ -41,6 +47,8 @@ function load(): Prefs {
         ? (p.sort as SortKey)
         : 'default',
       aiMode: p.aiMode === 'detailed' ? 'detailed' : 'quick',
+      aiLook: p.aiLook === 'original' ? 'original' : 'project',
+      aiMotion: p.aiMotion === 'continuous' ? 'continuous' : 'triggered',
       aiIncludeSource: typeof p.aiIncludeSource === 'boolean' ? p.aiIncludeSource : null,
       compare: Array.isArray(p.compare) ? p.compare.filter((x) => typeof x === 'string').slice(0, COMPARE_LIMIT) : [],
       filtersOpen: p.filtersOpen !== false,

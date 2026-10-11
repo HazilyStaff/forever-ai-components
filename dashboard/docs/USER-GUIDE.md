@@ -51,11 +51,28 @@ This is the main point of the site: **Browse → Preview → Copy for AI → pas
 2. Open Claude Code or Codex **inside the project where you want the component**.
 3. Paste and send.
 
-The copied text tells the AI exactly which component, where its source is, what must be
-preserved, to fit it into your project's existing framework and design, and to add no
-unnecessary dependencies.
+The copied text tells the AI exactly which component and where its source is, and by default
+it insists on two things:
+
+- **Essence, not skin.** The AI is told to take what the component *does* and how it *moves*,
+  and to take every colour, font, size and spacing value from **your project's existing
+  design**. It must not bring the original's colours or fonts with it.
+- **The preview is only a demo.** Components play by themselves in this library so you can see
+  them. The AI is told that this self-playing loop is not part of the component, to delete it,
+  and to animate only on the real trigger — a tap, a hover, a change of state, or (for a
+  loader) while your app is actually busy. For ambient pieces with no obvious trigger it is
+  told to ask you rather than loop forever.
+
+If you name a trigger in your own message ("play it when the card scrolls into view"), yours
+wins. The AI is also asked to say, before coding, what will trigger the animation and which of
+your design tokens it will use — a quick way to catch a misunderstanding.
 
 The small arrow next to the button opens the options:
+
+- **Look** — *Match my project's design* (default) or *Keep original look* for the rare time
+  you want the component's own colours and fonts.
+- **Animation** — *Only when triggered* (default) or *Plays by itself* for backgrounds and
+  other pieces you do want running continuously.
 
 - **Quick** — short and direct. Best for simple additions.
 - **Detailed** — a full brief with technical background, expected behaviour and testing steps.

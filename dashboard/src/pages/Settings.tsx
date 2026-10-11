@@ -196,6 +196,42 @@ export function Settings() {
         </div>
         <div className="setting-row">
           <div>
+            <strong>Look</strong>
+            <p className="muted small">
+              “Match my project’s design” tells the AI to take only the essence — behaviour and motion — and to use your project’s own
+              colours, fonts and spacing. “Keep original look” copies the component’s colours and fonts too.
+            </p>
+          </div>
+          <Segmented
+            label="Look"
+            value={prefs.aiLook}
+            onChange={(aiLook) => setPrefs({ aiLook })}
+            options={[
+              { value: 'project', label: 'Match my project’s design' },
+              { value: 'original', label: 'Keep original look' },
+            ]}
+          />
+        </div>
+        <div className="setting-row">
+          <div>
+            <strong>Animation</strong>
+            <p className="muted small">
+              Previews play by themselves so you can see them. “Only when triggered” tells the AI that is just a demo, and to animate on
+              tap, hover or a change of state instead. “Plays by itself” keeps it running continuously.
+            </p>
+          </div>
+          <Segmented
+            label="Animation"
+            value={prefs.aiMotion}
+            onChange={(aiMotion) => setPrefs({ aiMotion })}
+            options={[
+              { value: 'triggered', label: 'Only when triggered' },
+              { value: 'continuous', label: 'Plays by itself' },
+            ]}
+          />
+        </div>
+        <div className="setting-row">
+          <div>
             <strong>Include the complete source code</strong>
             <p className="muted small">
               {meta.site.repoIsPrivate
