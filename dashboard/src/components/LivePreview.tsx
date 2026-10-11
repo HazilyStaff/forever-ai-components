@@ -173,8 +173,14 @@ export function LivePreview({
   useEffect(() => {
     if (state === 'ready') post({ type: 'fc:bg', color: background ?? '' });
   }, [background, state]);
+  // The theme the running frame currently shows: starts as the one in its address.
+  const shownTheme = useRef(initialTheme);
   useEffect(() => {
-    if (state === 'ready' && theme !== initialTheme) post({ type: 'forever:theme', theme });
+    if (state === 'loading') shownTheme.current = initialTheme;
+    if (state === 'ready' && theme !== shownTheme.current) {
+      post({ type: 'forever:theme', theme });
+      shownTheme.current = theme;
+    }
   }, [theme, state, initialTheme]);
 
   const placeholderStyle = {

@@ -1,0 +1,184 @@
+name: Check for library updates
+
+# Once a week, looks at the original collection (the "upstream" repository) for new, changed
+# or removed components. If there is anything new it opens a pull request with a plain-English
+# report. Nothing reaches the live site until that pull request is merged by a person.
+#
+# It never pushes to main, never force-pushes, and never overwrites the dashboard's own files.
+# Full explanation: dashboard/docs/UPDATES.md
+
+on:
+  schedule:
+    - cron: "17 5 * * 1" # Mondays, 05:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+env:
+  UPSTREAM_REPO: isas1/forever-ai-components
+  UPSTREAM_BRANCH: main
+  # Paths owned by this dashboard. Upstream touching any of them is flagged for careful review.
+  OWNED_PATHS: dashboard .github CLAUDE.md AGENTS.md
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out this repository with full history
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Look for upstream changes
+        id: look
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
+          git fetch --no-tags upstream "${UPSTREAM_BRANCH}"
+          UP="$(git rev-parse "upstream/${UPSTREAM_BRANCH}")"
+          BRANCH="sync/upstream-${UP:0:10}"
+          echo "upstream=${UP}" >> "$GITHUB_OUTPUT"
+          echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
+
+          if git merge-base --is-ancestor "${UP}" HEAD; then
+            echo "state=up-to-date" >> "$GITHUB_OUTPUT"
+            echo "### Already up to date" >> "$GITHUB_STEP_SUMMARY"
+            echo "The library already contains everything in the original collection (\`${UP:0:10}\`)." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if git ls-remote --exit-code --heads origin "${BRANCH}" > /dev/null; then
+            echo "state=already-proposed" >> "$GITHUB_OUTPUT"
+            echo "### Update already waiting" >> "$GITHUB_STEP_SUMMARY"
+            echo "A pull request for this upstream version already exists (branch \`${BRANCH}\`). Merge or close it." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # Did upstream touch anything this dashboard owns?
+          OWNED="$(git diff --name-only "HEAD...upstream/${UPSTREAM_BRANCH}" -- ${OWNED_PATHS} | head -40 || true)"
+          { echo "owned<<EOF_OWNED"; echo "${OWNED}"; echo "EOF_OWNED"; } >> "$GITHUB_OUTPUT"
+
+          git checkout -b "${BRANCH}"
+          if git merge --no-ff --no-edit -m "Merge upstream ${UPSTREAM_REPO}@${UP:0:10}" "upstream/${UPSTREAM_BRANCH}"; then
+            echo "state=clean" >> "$GITHUB_OUTPUT"
+          else
+            # Conflict: do not guess. Put the untouched upstream version on a branch and let a
+            # person resolve it in the pull request. Nothing of ours is overwritten.
+            git diff --name-only --diff-filter=U > "$RUNNER_TEMP/conflicts.txt" || true
+            git merge --abort
+            git checkout -B "${BRANCH}" "upstream/${UPSTREAM_BRANCH}"
+            echo "state=conflict" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Rebuild the catalogue, report changes and run the checks
+        id: report
+        if: steps.look.outputs.state == 'clean'
+        working-directory: dashboard
+        shell: bash
+        run: |
+          set -uo pipefail
+          npm ci
+          node scripts/sync-report.mjs --write --upstream-commit "${{ steps.look.outputs.upstream }}" --report "$RUNNER_TEMP/report.md"
+          CHECKS=passed
+          { npm run build && npm test; } > "$RUNNER_TEMP/checks.log" 2>&1 || CHECKS=failed
+          echo "checks=${CHECKS}" >> "$GITHUB_OUTPUT"
+          tail -n 40 "$RUNNER_TEMP/checks.log"
+          git add data/catalogue-snapshot.json data/last-sync.json
+          git commit -m "Record library update from upstream ${{ steps.look.outputs.upstream }}" || true
+
+      - name: Open the pull request
+        if: steps.look.outputs.state == 'clean' || steps.look.outputs.state == 'conflict'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATE: ${{ steps.look.outputs.state }}
+          BRANCH: ${{ steps.look.outputs.branch }}
+          UP: ${{ steps.look.outputs.upstream }}
+          OWNED: ${{ steps.look.outputs.owned }}
+          CHECKS: ${{ steps.report.outputs.checks }}
+          TITLE: ${{ steps.report.outputs.title }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BODY="$RUNNER_TEMP/body.md"
+          : > "$BODY"
+          if [ "$STATE" = "conflict" ]; then
+            TITLE="NEEDS ATTENTION — library update could not be combined automatically"
+            {
+              echo "## This update needs a person (or an AI agent) to resolve it"
+              echo
+              echo "The original collection changed files that this repository also changed, so they could not be combined automatically."
+              echo "**Nothing has been overwritten and the live site is unchanged.**"
+              echo
+              echo "Conflicting files:"
+              echo '```'
+              cat "$RUNNER_TEMP/conflicts.txt"
+              echo '```'
+              echo "### What to do"
+              echo "Open Claude Code or Codex in this repository and say: _\"Resolve the upstream sync pull request, keeping the dashboard's own files.\"_"
+              echo "Or press **Resolve conflicts** below if GitHub offers it. See \`dashboard/docs/UPDATES.md\`."
+            } >> "$BODY"
+          else
+            if [ "$CHECKS" != "passed" ]; then
+              TITLE="DO NOT MERGE YET — ${TITLE} (checks failed)"
+              {
+                echo "## ⚠️ Automatic checks failed — do not merge yet"
+                echo
+                echo "The update combined cleanly, but the site build or its tests failed with the new files. Ask Claude Code or Codex to look at this pull request."
+                echo
+                echo '<details><summary>Check output</summary>'
+                echo
+                echo '```'
+                tail -n 60 "$RUNNER_TEMP/checks.log"
+                echo '```'
+                echo '</details>'
+                echo
+              } >> "$BODY"
+            else
+              {
+                echo "✅ **Safe to merge.** The update combined cleanly, the catalogue was rebuilt, and the build and tests passed."
+                echo
+                echo "Press **Merge pull request** to add these to your library. The site then redeploys by itself."
+                echo
+              } >> "$BODY"
+            fi
+            cat "$RUNNER_TEMP/report.md" >> "$BODY"
+          fi
+          if [ -n "${OWNED}" ]; then
+            {
+              echo
+              echo "## ⚠️ Review carefully: upstream changed files that belong to the dashboard"
+              echo '```'
+              echo "${OWNED}"
+              echo '```'
+              echo "These are not component files. Check them before merging."
+            } >> "$BODY"
+          fi
+          {
+            echo
+            echo "---"
+            echo "Upstream: https://github.com/${UPSTREAM_REPO}/commit/${UP}"
+            echo "Created automatically by the weekly “Check for library updates” workflow."
+          } >> "$BODY"
+
+          git push origin "${BRANCH}"
+          gh pr create --base "${GITHUB_REF_NAME}" --head "${BRANCH}" --title "${TITLE}" --body-file "$BODY"
+          {
+            echo "### Update proposed"
+            echo "${TITLE}"
+          } >> "$GITHUB_STEP_SUMMARY"
