@@ -6,14 +6,20 @@ import { defineConfig, devices } from '@playwright/test';
 export const OPEN_URL = 'http://127.0.0.1:8788';
 export const LOCKED_URL = 'http://127.0.0.1:8789';
 
+// GitHub's test machines have two slow cores and no graphics card, and WebKit there cannot
+// animate a screenful of previews in time. On CI the WebKit runs therefore ask for reduced
+// motion (which every component honours) and everything gets more time. Locally nothing changes.
+const CI = !!process.env.CI;
+const calm = CI ? ({ reducedMotion: 'reduce' } as const) : {};
+
 export default defineConfig({
   testDir: 'tests/e2e',
   testMatch: /.*\.spec\.ts/,
   fullyParallel: true,
-  workers: 3,
+  workers: CI ? 2 : 3,
   retries: 1,
-  timeout: 60_000,
-  expect: { timeout: 15_000 },
+  timeout: CI ? 120_000 : 60_000,
+  expect: { timeout: CI ? 40_000 : 15_000 },
   reporter: [['list']],
   outputDir: 'test-results/e2e',
   use: {
@@ -26,8 +32,8 @@ export default defineConfig({
       testMatch: /(library|workflow|security)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, permissions: ['clipboard-read', 'clipboard-write'] },
     },
-    { name: 'iphone-webkit', testMatch: /mobile\.spec\.ts/, use: { ...devices['iPhone 14'] } },
-    { name: 'ipad-webkit', testMatch: /mobile\.spec\.ts/, use: { ...devices['iPad (gen 7)'] } },
+    { name: 'iphone-webkit', testMatch: /mobile\.spec\.ts/, use: { ...devices['iPhone 14'], ...calm } },
+    { name: 'ipad-webkit', testMatch: /mobile\.spec\.ts/, use: { ...devices['iPad (gen 7)'], ...calm } },
   ],
   webServer: [
     {
