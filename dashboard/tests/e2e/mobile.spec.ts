@@ -3,7 +3,9 @@ import { expect, test } from '@playwright/test';
 import { noSidewaysScroll, openLibrary, openViewer, TOGGLE } from './helpers';
 
 test('library fits the screen and previews run', async ({ page }) => {
-  await openLibrary(page);
+  // CI machines have no graphics card and cannot paint a full tablet screen of live previews in
+  // time, so there the check uses a short result list. Locally it uses the whole library.
+  await openLibrary(page, process.env.CI ? '?q=gooey liquid toggle' : '');
   await expect(page.locator('.card .preview[data-state="ready"]').first()).toBeVisible();
   await noSidewaysScroll(page);
   for (const density of ['Compact', 'Large']) {
